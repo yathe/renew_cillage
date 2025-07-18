@@ -2,7 +2,9 @@ import { unstable_cache as nextCache } from "next/cache";
 import { cache as reactCache } from "react";
 
 // 🎯 A generic type: Callback is any async function
-type Callback = (...args: any[]) => Promise<any> 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Callback = (...args: any[]) => Promise<any>
+
 
 // 🚀 Our custom cache wrapper
 // ✅ Wraps a given async function with both React's cache & Next.js cache
