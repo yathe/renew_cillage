@@ -1,12 +1,15 @@
 import db from "@/db/db"
 import { notFound } from "next/navigation"
-import { stripe } from "@/lib/stripe" // ✅ import from the new file
+import { stripe } from "@/lib/stripe"
 import { CheckoutForm } from "./_components/CheckOutForm"
-export default async function PurchasePage({
-  params,
-}: {
-  params: { id: string }
-}) {
+
+interface PageProps {
+  params: {
+    id: string
+  }
+}
+
+export default async function PurchasePage({ params }: PageProps) {
   const { id } = params
 
   const product = await db.product.findUnique({ where: { id } })
@@ -22,5 +25,10 @@ export default async function PurchasePage({
     throw new Error('Stripe failed to create payment')
   }
 
-  return <CheckoutForm product={product} clientSecret={paymentIntent.client_secret} />
+  return (
+    <CheckoutForm
+      product={product}
+      clientSecret={paymentIntent.client_secret}
+    />
+  )
 }
