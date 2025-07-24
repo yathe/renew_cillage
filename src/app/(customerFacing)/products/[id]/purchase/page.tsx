@@ -10,6 +10,7 @@ export default async function PurchasePage({
 }) {
   const { id } = params;
 
+  // Rest of your component code remains the same
   const product = await db.product.findUnique({ where: { id } });
   if (!product) return notFound();
 
