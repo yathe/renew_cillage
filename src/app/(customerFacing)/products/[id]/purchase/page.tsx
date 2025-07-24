@@ -3,11 +3,11 @@ import { notFound } from "next/navigation";
 import { stripe } from "@/lib/stripe";
 import { CheckoutForm } from "./_components/CheckOutForm";
 
-export default async function PurchasePage({
-  params,
-}: {
+interface PurchasePageProps {
   params: { id: string };
-}) {
+}
+
+export default async function PurchasePage({ params }: PurchasePageProps) {
   const { id } = params;
 
   // Fetch product from DB
