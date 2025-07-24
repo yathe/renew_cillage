@@ -3,14 +3,15 @@ import { notFound } from "next/navigation";
 import { stripe } from "@/lib/stripe";
 import { CheckoutForm } from "./_components/CheckOutForm";
 
-export default async function PurchasePage({
-  params,
-}: {
+interface PageProps {
   params: { id: string };
-}) {
+  searchParams: Record<string, string | string[] | undefined>;
+}
+
+export default async function PurchasePage({ params }: PageProps) {
   const { id } = params;
 
-  // Rest of your component code remains the same
+  // Rest of your existing code
   const product = await db.product.findUnique({ where: { id } });
   if (!product) return notFound();
 
