@@ -3,18 +3,23 @@ import { notFound } from "next/navigation";
 import { stripe } from "@/lib/stripe";
 import { CheckoutForm } from "./_components/CheckOutForm";
 
-interface PageProps {
+export default async function PurchasePage({
+  params,
+}: {
   params: { id: string };
-  searchParams: Record<string, string | string[] | undefined>;
-}
-
-export default async function PurchasePage({ params }: PageProps) {
+}) {
   const { id } = params;
 
-  // Rest of your existing code
-  const product = await db.product.findUnique({ where: { id } });
-  if (!product) return notFound();
+  // Fetch product from DB
+  const product = await db.product.findUnique({ 
+    where: { id }
+  });
 
+  if (!product) {
+    return notFound();
+  }
+
+  // Create payment intent
   const paymentIntent = await stripe.paymentIntents.create({
     amount: product.priceInCents,
     currency: "inr",
@@ -22,7 +27,7 @@ export default async function PurchasePage({ params }: PageProps) {
   });
 
   if (!paymentIntent.client_secret) {
-    throw new Error("Stripe failed to create payment");
+    throw new Error("Stripe failed to create payment intent");
   }
 
   return (
