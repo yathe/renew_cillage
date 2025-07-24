@@ -73,8 +73,8 @@ export function ProductForm({ product }: { product?: Product | null }) {
         {/* 👀 Live currency preview */}
         <div className="text-sm text-gray-500">
           {priceInCents
-            ? `₹${formatCurrency(Number(priceInCents) / 100)}`
-            : "Enter price to see ₹"}
+            ? `${formatCurrency(Number(priceInCents) / 100)}`
+            : "Enter price to see "}
         </div>
         {error.priceInCents && <div className="text-destructive">{error.priceInCents}</div>}
       </div>

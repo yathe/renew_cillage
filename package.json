@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "email": "copy .env .\\node_modules\\react-email\\.env && email dev --dir src/email --port 3001"
   },
   "dependencies": {
     "@clerk/nextjs": "^6.25.4",
@@ -23,6 +24,8 @@
     "next": "15.3.5",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-email": "^4.2.3",
+    "resend": "^4.7.0",
     "stripe": "^18.3.0",
     "tailwind-merge": "^3.3.1",
     "zod": "^4.0.5"

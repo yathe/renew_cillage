@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic" // ✅ add this
+
 import Image from "next/image"
 import Stripe from "stripe"
 import { notFound } from "next/navigation"
@@ -10,13 +12,17 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string)
 export default async function SuccessPage({
   searchParams,
 }: {
-  searchParams: { payment_intent: string }
+  searchParams: Promise<{ payment_intent?: string }>
 }) {
-  // get payment info
-  const paymentIntent = await stripe.paymentIntents.retrieve(searchParams.payment_intent)
-  if (paymentIntent.metadata.productId == null) return notFound()
+  // ✅ Await searchParams first
+  const params = await searchParams
+  const paymentIntentId = params.payment_intent
+  if (!paymentIntentId) return notFound()
 
-  // get product info
+  // ✅ Now safe to use
+  const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId)
+  if (!paymentIntent.metadata.productId) return notFound()
+
   const product = await db.product.findUnique({
     where: { id: paymentIntent.metadata.productId },
   })
@@ -29,7 +35,6 @@ export default async function SuccessPage({
   })
 
   return (
-    // ✅ full height, center both horizontally and vertically
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 via-white to-gray-100 p-4">
       <div className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl border border-gray-200 overflow-hidden">
         {/* header */}
@@ -73,10 +78,12 @@ export default async function SuccessPage({
             </Button>
           )}
         </div>
-      </div>
+      </div> 
     </div>
   )
 }
+
+
 
 async function createDownloadVerification(productId: string) {
   return (
@@ -87,4 +94,4 @@ async function createDownloadVerification(productId: string) {
       },
     })
   ).id
-}
+} 
