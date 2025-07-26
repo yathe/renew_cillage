@@ -8,6 +8,7 @@ const config: Config = {
     './components/**/*.{ts,tsx}',
     './pages/**/*.{ts,tsx}',
     './src/**/*.{ts,tsx}',
+    "./src/email/**/*.tsx"
   ],
   theme: {
     extend: {
