@@ -75,7 +75,7 @@ export function ProductCard({
             transition-all duration-300
           "
         >
-          <Link href={`/products/${id}/purchase`}>Purchase</Link>
+          <Link href={`/products/${id}`}>Purchase</Link>
         </Button>
       </CardFooter>
     </Card>
