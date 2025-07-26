@@ -12,6 +12,24 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { userOrderExists } from "@/app/(customerFacing)/actions/orders"
+import type { RazorpayOptions } from "razorpay"
+
+// Add Razorpay to the global window object type
+declare global {
+  interface Window {
+    Razorpay: new (options: RazorpayOptions) => RazorpayInstance
+  }
+
+  interface RazorpayInstance {
+    open: () => void
+  }
+}
+
+interface RazorpayResponse {
+  razorpay_payment_id: string
+  razorpay_order_id: string
+  razorpay_signature: string
+}
 
 type CheckoutFormProps = {
   product: {
@@ -81,15 +99,15 @@ export function CheckoutForm({
       return
     }
 
-    const options: any = {
-      key: process.env.NEXT_PUBLIC_Razorpay_PUBLISHABLE_KEY,
+    const options: RazorpayOptions = {
+      key: process.env.NEXT_PUBLIC_Razorpay_PUBLISHABLE_KEY || "",
       amount,
       currency,
       name: "Your Store Name",
       description: product.name,
       image: "/logo.png",
       order_id: razorpayOrderId,
-      handler: function (response: any) {
+      handler: function (response: RazorpayResponse) {
         window.location.href = `/razorpay/purchase-success?razorpay_payment_id=${response.razorpay_payment_id}`
       },
       prefill: {
@@ -104,7 +122,7 @@ export function CheckoutForm({
       },
     }
 
-    const rzp = new (window as any).Razorpay(options)
+    const rzp = new window.Razorpay(options)
     rzp.open()
     setIsLoading(false)
   }
@@ -163,7 +181,9 @@ export function CheckoutForm({
                     type="email"
                     required
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                      setEmail(e.target.value)
+                    }
                     placeholder="Enter your email"
                     className="w-full px-4 py-2 border rounded-xl text-sm"
                   />
@@ -173,12 +193,10 @@ export function CheckoutForm({
                 <button
                   onClick={handlePayment}
                   disabled={isLoading}
-                  className="
-                    w-full py-3 px-4 rounded-xl font-semibold text-white
+                  className="w-full py-3 px-4 rounded-xl font-semibold text-white
                     bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500
                     hover:scale-[1.02] hover:shadow-xl active:scale-95
-                    transition-all duration-300 ease-in-out
-                  "
+                    transition-all duration-300 ease-in-out"
                 >
                   {isLoading ? "Processing..." : `Pay ${formattedPrice}`}
                 </button>
