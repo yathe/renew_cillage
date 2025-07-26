@@ -1,39 +1,47 @@
-import db from "@/db/db";
-import { notFound } from "next/navigation";
-import { stripe } from "@/lib/stripe";
-import { CheckoutForm } from "./_components/CheckOutForm";
+import db from "@/db/db"
+import { notFound } from "next/navigation"
+import razorpay from "@/lib/razorpay"
+import { CheckoutForm } from "./_components/CheckOutForm"
 
-export default async function PurchasePage({
-  params,
-}: {
-  params: { id: string };
-}) {
-  const { id } = params;
+interface PageProps {
+  params: { id: string }
+}
+
+export default async function PurchasePage({ params }: PageProps) {
+  const id = params?.id
+
+  if (!id) return notFound()
 
   // Fetch product from DB
-  const product = await db.product.findUnique({ 
-    where: { id }
-  });
+  const product = await db.product.findUnique({
+    where: { id },
+  })
 
-  if (!product) {
-    return notFound();
-  }
+  if (!product) return notFound()
 
-  // Create payment intent
-  const paymentIntent = await stripe.paymentIntents.create({
-    amount: product.priceInCents,
-    currency: "inr",
-    metadata: { productId: product.id },
-  });
+  // Generate a receipt with <= 40 characters
+  const shortReceipt = `p_${id.slice(0, 20)}_${Date.now().toString(36)}`
 
-  if (!paymentIntent.client_secret) {
-    throw new Error("Stripe failed to create payment intent");
+  // Create Razorpay order
+  const order = await razorpay.orders.create({
+    amount: product.priceInCents, // Razorpay expects paise
+    currency: "INR",
+    receipt: shortReceipt,
+    notes: {
+      productId: product.id,
+    },
+  })
+
+  if (!order || !order.id) {
+    throw new Error("Razorpay failed to create order")
   }
 
   return (
     <CheckoutForm
       product={product}
-      clientSecret={paymentIntent.client_secret}
+      razorpayOrderId={order.id}
+      amount={order.amount}
+      currency={order.currency}
     />
-  );
+  )
 }

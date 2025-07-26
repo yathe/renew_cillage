@@ -1,34 +1,38 @@
-export const dynamic = "force-dynamic" // ✅ add this
+export const dynamic = "force-dynamic"
 
+import Razorpay from "razorpay"
 import Image from "next/image"
-import Stripe from "stripe"
 import { notFound } from "next/navigation"
 import db from "@/db/db"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string)
+const razorpay = new Razorpay({
+  key_id: process.env.NEXT_PUBLIC_Razorpay_PUBLISHABLE_KEY as string,
+  key_secret: process.env.Razorpay_secret_key as string,
+})
 
 export default async function SuccessPage({
   searchParams,
 }: {
-  searchParams: Promise<{ payment_intent?: string }>
+  searchParams: Promise<{ razorpay_payment_id?: string }>
 }) {
-  // ✅ Await searchParams first
   const params = await searchParams
-  const paymentIntentId = params.payment_intent
-  if (!paymentIntentId) return notFound()
+  const paymentId = params.razorpay_payment_id
+  if (!paymentId) return notFound()
 
-  // ✅ Now safe to use
-  const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId)
-  if (!paymentIntent.metadata.productId) return notFound()
+  // ✅ Fetch payment details from Razorpay
+  const payment = await razorpay.payments.fetch(paymentId)
+  const productId = payment.notes?.productId
+
+  if (!productId) return notFound()
 
   const product = await db.product.findUnique({
-    where: { id: paymentIntent.metadata.productId },
+    where: { id: productId },
   })
   if (!product) return notFound()
 
-  const isSuccess = paymentIntent.status === "succeeded"
+  const isSuccess = payment.status === "captured"
   const formattedPrice = (product.priceInCents / 100).toLocaleString("en-IN", {
     style: "currency",
     currency: "INR",
@@ -78,12 +82,10 @@ export default async function SuccessPage({
             </Button>
           )}
         </div>
-      </div> 
+      </div>
     </div>
   )
 }
-
-
 
 async function createDownloadVerification(productId: string) {
   return (
@@ -94,4 +96,4 @@ async function createDownloadVerification(productId: string) {
       },
     })
   ).id
-} 
+}
