@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "email": "copy .env .\\node_modules\\react-email\\.env && email dev --dir src/email --port 3001"
+    "email": "copy .env .\\node_modules\\react-email\\.env && email dev --dir src/email --port 3001",
+    "ws": "ts-node src/lib/websocket/server.ts",
+    "dev:all": "concurrently \"npm run dev\" \"npm run ws\""
   },
   "dependencies": {
     "@clerk/backend": "^0.18.0",
@@ -19,10 +21,14 @@
     "@radix-ui/react-slot": "^1.2.3",
     "@react-email/components": "^0.3.2",
     "@react-email/tailwind": "^0.0.4",
+    "@types/leaflet": "^1.9.20",
+    "@types/ws": "^8.18.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "concurrently": "^9.2.0",
     "crypto": "^1.0.1",
     "framer-motion": "^11.18.2",
+    "leaflet": "^1.9.4",
     "lucide-react": "^0.525.0",
     "motion-dom": "^12.23.9",
     "motion-utils": "^12.23.6",
@@ -33,6 +39,7 @@
     "react-email": "^4.2.3",
     "resend": "^4.7.0",
     "tailwind-merge": "^3.3.1",
+    "ws": "^8.18.3",
     "zod": "^4.0.5"
   },
   "devDependencies": {

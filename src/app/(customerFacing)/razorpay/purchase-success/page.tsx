@@ -11,7 +11,6 @@ const razorpay = new Razorpay({
   key_id: process.env.NEXT_PUBLIC_Razorpay_PUBLISHABLE_KEY as string,
   key_secret: process.env.Razorpay_secret_key as string,
 })
-
 export default async function SuccessPage({
   searchParams,
 }: {
@@ -24,8 +23,9 @@ export default async function SuccessPage({
   // ✅ Fetch payment details from Razorpay
   const payment = await razorpay.payments.fetch(paymentId)
   const productId = payment.notes?.productId
+  const buyerEmail = payment.email
 
-  if (!productId) return notFound()
+  if (!productId || !buyerEmail) return notFound()
 
   const product = await db.product.findUnique({
     where: { id: productId },
@@ -38,9 +38,41 @@ export default async function SuccessPage({
     currency: "INR",
   })
 
+  // First, ensure the user exists
+  const user = await db.user.upsert({
+    where: { email: buyerEmail },
+    create: {
+      email: buyerEmail,
+      name: buyerEmail.split('@')[0], // Default name from email
+      clerkUserId: `razorpay_${paymentId}`, // Temporary ID
+      imageUrl: '/default-user.png' // Default image
+    },
+    update: {}
+  })
+
+  // Then create the order
+  const order = await db.order.create({
+    data: {
+      product: {
+        connect: { id: productId }
+      },
+      pricePaidInCents: payment.amount,
+      user: { 
+        connect: { id: user.id }
+      },
+    },
+  })
+
+  const downloadVerification = await db.downloadVerification.create({
+    data: {
+      productId,
+      expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+    },
+  })
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 via-white to-gray-100 p-4">
-      <div className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl border border-gray-200 overflow-hidden">
+       <div className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl border border-gray-200 overflow-hidden">
         {/* header */}
         <div className="bg-gradient-to-r from-green-400 to-indigo-500 text-white py-6 px-4 text-center">
           <h1 className="text-3xl font-extrabold">
@@ -69,13 +101,20 @@ export default async function SuccessPage({
         </div>
 
         {/* footer */}
-        <div className="p-6 border-t border-gray-100 flex justify-center">
+        <div className="p-6 border-t border-gray-100 flex flex-col gap-4 items-center">
           {isSuccess ? (
-            <Button asChild className="text-lg px-6 py-3 rounded-xl">
-              <a href={`/products/download/${await createDownloadVerification(product.id)}`}>
-                Download Now
-              </a>
-            </Button>
+            <>
+              <Button asChild className="text-lg px-6 py-3 rounded-xl">
+                <a href={`/products/download/${await createDownloadVerification(product.id)}`}>
+                  Download Now
+                </a>
+              </Button>
+              <Button asChild variant="outline" className="text-lg px-6 py-3 rounded-xl">
+                <Link href={`/track/${order.id}`}>
+                  Track Your Delivery
+                </Link>
+              </Button>
+            </>
           ) : (
             <Button asChild variant="secondary" className="text-lg px-6 py-3 rounded-xl">
               <Link href={`/products/${product.id}/purchase`}>Try Again</Link>
@@ -86,7 +125,6 @@ export default async function SuccessPage({
     </div>
   )
 }
-
 async function createDownloadVerification(productId: string) {
   return (
     await db.downloadVerification.create({
