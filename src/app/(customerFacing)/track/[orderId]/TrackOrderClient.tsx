@@ -18,8 +18,11 @@ export default function TrackOrderClient({ orderId }: { orderId: string }) {
   const [customerLocation, setCustomerLocation] = useState<[number, number] | null>(null)
   const [eta, setEta] = useState<string>("calculating...")
   const [distance, setDistance] = useState<string>("calculating...")
+  const [connectionStatus, setConnectionStatus] = useState<"connecting"|"connected"|"error"|"disconnected">("connecting")
   const socketRef = useRef<WebSocket | null>(null)
-  const messageQueue = useRef<any[]>([])
+  const reconnectAttempts = useRef(0)
+  const maxReconnectAttempts = 5
+  const reconnectInterval = useRef<NodeJS.Timeout | null>(null)
 
   const handleAddressSubmit = async () => {
     if (!address.trim()) return
@@ -34,91 +37,110 @@ export default function TrackOrderClient({ orderId }: { orderId: string }) {
       const data = await response.json()
       if (data.latitude && data.longitude) {
         setCustomerLocation([data.latitude, data.longitude])
-        const message = {
+        sendWebSocketMessage({
           type: "customer-location",
           latitude: data.latitude,
           longitude: data.longitude,
           address,
           orderId
-        }
-
-        if (socketRef.current?.readyState === WebSocket.OPEN) {
-          socketRef.current.send(JSON.stringify(message))
-        } else {
-          messageQueue.current.push(message)
-        }
+        })
       }
     } catch (error) {
       console.error("Geocoding error:", error)
     }
   }
 
-  useEffect(() => {
-    const connectWebSocket = () => {
-      const socket = new WebSocket(`ws://${window.location.host}/api/websocket?orderId=${orderId}`)
-      socketRef.current = socket
+  const sendWebSocketMessage = (message: any) => {
+    if (socketRef.current?.readyState === WebSocket.OPEN) {
+      socketRef.current.send(JSON.stringify(message))
+    } else {
+      console.warn("WebSocket not ready, message not sent")
+    }
+  }
 
-      socket.onopen = () => {
-        // Send any queued messages
-        while (messageQueue.current.length > 0) {
-          const message = messageQueue.current.shift()
-          socket.send(JSON.stringify(message))
-        }
-      }
+  const connectWebSocket = () => {
+    if (reconnectAttempts.current >= maxReconnectAttempts) {
+      console.error("Max reconnection attempts reached")
+      return
+    }
 
-      socket.onmessage = (event) => {
+    setConnectionStatus("connecting")
+    const socket = new WebSocket(`ws://${window.location.host}/api/websocket?orderId=${orderId}`)
+    socketRef.current = socket
+
+    socket.onopen = () => {
+      reconnectAttempts.current = 0
+      setConnectionStatus("connected")
+      console.log("WebSocket connected")
+    }
+
+    socket.onmessage = (event) => {
+      try {
         const data = JSON.parse(event.data)
         if (data.type === "driver-location") {
           setDriverLocation([data.latitude, data.longitude])
         }
-      }
-
-      socket.onerror = (error) => {
-        console.error("WebSocket error:", error)
-      }
-
-      socket.onclose = () => {
-        console.log("WebSocket closed - attempting reconnect...")
-        setTimeout(connectWebSocket, 3000) // Reconnect after 3 seconds
+      } catch (error) {
+        console.error("Error parsing WebSocket message:", error)
       }
     }
 
-    connectWebSocket()
+    socket.onerror = (event: Event) => {
+      console.error("WebSocket error event:", event)
+      setConnectionStatus("error")
+    }
 
-    // Get customer's current location
+    socket.onclose = (event) => {
+      console.log(`WebSocket closed with code ${event.code}: ${event.reason}`)
+      setConnectionStatus("disconnected")
+      
+      if (reconnectAttempts.current < maxReconnectAttempts) {
+        reconnectAttempts.current += 1
+        const delay = Math.min(1000 * (2 ** reconnectAttempts.current), 10000) // Exponential backoff with max 10s
+        console.log(`Attempting to reconnect in ${delay}ms (attempt ${reconnectAttempts.current}/${maxReconnectAttempts})`)
+        
+        reconnectInterval.current = setTimeout(() => {
+          connectWebSocket()
+        }, delay)
+      }
+    }
+
+    return socket
+  }
+
+  useEffect(() => {
+    if (!orderId) return
+
+    const socket = connectWebSocket()
+
+    // Get customer's current location if available
+    let watchId: number | null = null
     if (navigator.geolocation) {
-      const watchId = navigator.geolocation.watchPosition(
+      watchId = navigator.geolocation.watchPosition(
         (pos) => {
           const { latitude, longitude } = pos.coords
           setCustomerLocation([latitude, longitude])
-          const message = {
+          sendWebSocketMessage({
             type: "customer-location",
             latitude,
             longitude,
             orderId
-          }
-
-          if (socketRef.current?.readyState === WebSocket.OPEN) {
-            socketRef.current.send(JSON.stringify(message))
-          } else {
-            messageQueue.current.push(message)
-          }
+          })
         },
-        (err) => console.error(err),
+        (err) => console.error("Geolocation error:", err),
         { enableHighAccuracy: true }
       )
-
-      return () => {
-        navigator.geolocation.clearWatch(watchId)
-        if (socketRef.current) {
-          socketRef.current.close()
-        }
-      }
     }
 
     return () => {
-      if (socketRef.current) {
-        socketRef.current.close()
+      if (watchId && navigator.geolocation) {
+        navigator.geolocation.clearWatch(watchId)
+      }
+      if (socket) {
+        socket.close()
+      }
+      if (reconnectInterval.current) {
+        clearTimeout(reconnectInterval.current)
       }
     }
   }, [orderId])
@@ -160,7 +182,16 @@ export default function TrackOrderClient({ orderId }: { orderId: string }) {
       <div className="container py-8">
         <Card>
           <CardHeader>
-            <CardTitle>Track Your Order #{orderId}</CardTitle>
+            <CardTitle>
+              Track Your Order #{orderId}
+              <span className={`ml-2 text-sm font-normal ${
+                connectionStatus === "connected" ? "text-green-500" :
+                connectionStatus === "connecting" ? "text-yellow-500" :
+                "text-red-500"
+              }`}>
+                ({connectionStatus})
+              </span>
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex gap-2">
