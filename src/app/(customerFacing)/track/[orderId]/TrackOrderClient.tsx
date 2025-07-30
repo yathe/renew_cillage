@@ -6,7 +6,7 @@ import dynamic from "next/dynamic"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-
+import { useCallback } from "react";
 const DynamicMap = dynamic(() => import("./MapComponent"), {
   ssr: false,
   loading: () => <p>Loading map...</p>,
@@ -49,20 +49,26 @@ export default function TrackOrderClient({ orderId }: { orderId: string }) {
       console.error("Geocoding error:", error)
     }
   }
-
-  const sendWebSocketMessage = (message: any) => {
-    if (socketRef.current?.readyState === WebSocket.OPEN) {
-      socketRef.current.send(JSON.stringify(message))
-    } else {
-      console.warn("WebSocket not ready, message not sent")
-    }
+// Add WebSocket message type
+type WebSocketMessage = {
+  type: string;
+  latitude?: number;
+  longitude?: number;
+  address?: string;
+  orderId?: string;
+};
+ const sendWebSocketMessage = useCallback((message: WebSocketMessage) => {
+  if (socketRef.current?.readyState === WebSocket.OPEN) {
+    socketRef.current.send(JSON.stringify(message));
   }
+}, []);
 
-  const connectWebSocket = () => {
+  const connectWebSocket = useCallback(() => {
     if (reconnectAttempts.current >= maxReconnectAttempts) {
       console.error("Max reconnection attempts reached")
       return
     }
+    }, [orderId, sentWebSocketMessage]);
 
     setConnectionStatus("connecting")
     const socket = new WebSocket(`ws://${window.location.host}/api/websocket?orderId=${orderId}`)
@@ -149,9 +155,9 @@ export default function TrackOrderClient({ orderId }: { orderId: string }) {
     if (driverLocation && customerLocation) {
       calculateRoute(driverLocation, customerLocation)
     }
-  }, [driverLocation, customerLocation])
+  }, [driverLocation, customerLocation, calculateRoute])
 
-  const calculateRoute = async (driverLoc: [number, number], customerLoc: [number, number]) => {
+  const calculateRoute = useCallback(async (driverLoc: [number, number], customerLoc: [number, number]) => {
     try {
       const response = await fetch("/api/route", {
         method: "POST",
@@ -175,7 +181,7 @@ export default function TrackOrderClient({ orderId }: { orderId: string }) {
     } catch (error) {
       console.error("Route calculation error:", error)
     }
-  }
+  }, []);
 
   return (
     <div className="min-h-screen bg-gray-50">
