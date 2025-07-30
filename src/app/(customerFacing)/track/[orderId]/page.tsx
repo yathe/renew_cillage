@@ -1,4 +1,4 @@
-"use client"
+"use client";
 
 import { useEffect, useState, useRef } from "react";
 import { useParams } from "next/navigation";
@@ -7,31 +7,36 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
+// Import the dynamic map component
 const DynamicMap = dynamic(() => import("./MapComponent"), {
   ssr: false,
   loading: () => <p>Loading map...</p>,
 });
 
+type LatLng = [number, number];
+
 export default function TrackOrder() {
-  const { orderId } = useParams();
-  const [address, setAddress] = useState("");
-  const [driverLocation, setDriverLocation] = useState<[number, number] | null>(null);
-  const [customerLocation, setCustomerLocation] = useState<[number, number] | null>(null);
-  const [eta, setEta] = useState("calculating...");
-  const [distance, setDistance] = useState("calculating...");
-  const [connectionStatus, setConnectionStatus] = useState<"connecting"|"connected"|"error"|"disconnected">("connecting");
-  
+  const params = useParams();
+  const orderId = params?.orderId as string;
+
+  const [address, setAddress] = useState<string>("");
+  const [driverLocation, setDriverLocation] = useState<LatLng | null>(null);
+  const [customerLocation, setCustomerLocation] = useState<LatLng | null>(null);
+  const [eta, setEta] = useState<string>("calculating...");
+  const [distance, setDistance] = useState<string>("calculating...");
+  const [connectionStatus, setConnectionStatus] = useState<"connecting" | "connected" | "error" | "disconnected">("connecting");
+
   const eventSourceRef = useRef<EventSource | null>(null);
   const customerIdRef = useRef<string>(Math.random().toString(36).substring(2));
 
-  // Connect to SSE for driver updates
+  // SSE listener
   useEffect(() => {
     setConnectionStatus("connecting");
-    
+
     const eventSource = new EventSource(`/api/customer-events/${orderId}`);
     eventSourceRef.current = eventSource;
 
-    eventSource.addEventListener('initial', (event) => {
+    eventSource.addEventListener("initial", (event: MessageEvent) => {
       setConnectionStatus("connected");
       const data = JSON.parse(event.data);
       if (data.driver) {
@@ -39,7 +44,7 @@ export default function TrackOrder() {
       }
     });
 
-    eventSource.addEventListener('driver-update', (event) => {
+    eventSource.addEventListener("driver-update", (event: MessageEvent) => {
       const { driver } = JSON.parse(event.data);
       setDriverLocation([driver.latitude, driver.longitude]);
     });
@@ -52,41 +57,40 @@ export default function TrackOrder() {
     return () => {
       eventSource.close();
       setConnectionStatus("disconnected");
-      
-      // Notify server about disconnection
-      fetch('/api/disconnect', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+
+      fetch("/api/disconnect", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           orderId,
           customerId: customerIdRef.current,
-          type: 'customer'
-        })
+          type: "customer",
+        }),
       }).catch(console.error);
     };
   }, [orderId]);
 
-  // Track customer location
+  // Track customer live location
   useEffect(() => {
     let watchId: number | null = null;
-    
+
     if (navigator.geolocation) {
       watchId = navigator.geolocation.watchPosition(
         async (pos) => {
           const { latitude, longitude } = pos.coords;
           setCustomerLocation([latitude, longitude]);
-          
+
           try {
-            await fetch('/api/customer-location', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+            await fetch("/api/customer-location", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
                 orderId,
                 latitude,
                 longitude,
                 address,
-                customerId: customerIdRef.current
-              })
+                customerId: customerIdRef.current,
+              }),
             });
           } catch (error) {
             console.error("Failed to update customer location:", error);
@@ -98,35 +102,35 @@ export default function TrackOrder() {
     }
 
     return () => {
-      if (watchId) navigator.geolocation.clearWatch(watchId);
+      if (watchId !== null) navigator.geolocation.clearWatch(watchId);
     };
   }, [orderId, address]);
 
-  // Handle address submission
+  // Address submit
   const handleAddressSubmit = async () => {
     if (!address.trim()) return;
-    
+
     try {
       const response = await fetch("/api/geocode", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ address })
+        body: JSON.stringify({ address }),
       });
-      
+
       const data = await response.json();
       if (data.latitude && data.longitude) {
         setCustomerLocation([data.latitude, data.longitude]);
-        
-        await fetch('/api/customer-location', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+
+        await fetch("/api/customer-location", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             orderId,
             latitude: data.latitude,
             longitude: data.longitude,
             address,
-            customerId: customerIdRef.current
-          })
+            customerId: customerIdRef.current,
+          }),
         });
       }
     } catch (error) {
@@ -141,15 +145,20 @@ export default function TrackOrder() {
           <CardHeader>
             <CardTitle>
               Track Your Order #{orderId}
-              <span className={`ml-2 text-sm font-normal ${
-                connectionStatus === "connected" ? "text-green-500" :
-                connectionStatus === "connecting" ? "text-yellow-500" :
-                "text-red-500"
-              }`}>
+              <span
+                className={`ml-2 text-sm font-normal ${
+                  connectionStatus === "connected"
+                    ? "text-green-500"
+                    : connectionStatus === "connecting"
+                    ? "text-yellow-500"
+                    : "text-red-500"
+                }`}
+              >
                 ({connectionStatus})
               </span>
             </CardTitle>
           </CardHeader>
+
           <CardContent className="space-y-4">
             <div className="flex gap-2">
               <Input
@@ -177,7 +186,7 @@ export default function TrackOrder() {
               <DynamicMap
                 driverLocation={driverLocation}
                 customerLocation={customerLocation}
-                onRouteCalculated={(eta, distance) => {
+                onRouteCalculated={(eta: string, distance: string) => {
                   setEta(eta);
                   setDistance(distance);
                 }}
