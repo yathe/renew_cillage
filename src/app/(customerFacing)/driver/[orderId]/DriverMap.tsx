@@ -1,17 +1,20 @@
 "use client"
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useCallback } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
+interface Customer {
+  id: string;
+  latitude: number;
+  longitude: number;
+  address?: string;
+  distance?: number;
+  eta?: string;
+}
+
 interface DriverMapProps {
-  customers: Array<{
-    id: string;
-    latitude: number;
-    longitude: number;
-    address?: string;
-    distance?: number;
-  }>;
+  customers: Customer[];
   onRouteCalculated: (distance: string, time: string) => void;
 }
 
@@ -21,6 +24,75 @@ export default function DriverMap({ customers, onRouteCalculated }: DriverMapPro
   const customerMarkersRef = useRef<L.Marker[]>([]);
   const routeLineRef = useRef<L.Polyline | null>(null);
   const driverPosRef = useRef<{ lat: number; lng: number } | null>(null);
+
+  // Calculate ETA helper
+  const calculateETA = useCallback((distanceKm: number) => {
+    const avgSpeedKmH = 30;
+    const timeH = distanceKm / avgSpeedKmH;
+    const timeM = Math.round(timeH * 60);
+    return `${timeM} min`;
+  }, []);
+
+  // Calculate total time helper
+  const calculateTotalTime = useCallback((totalDistanceKm: number, stops: number) => {
+    const avgSpeedKmH = 30;
+    const drivingTimeH = totalDistanceKm / avgSpeedKmH;
+    const stopTimeH = stops * 5 / 60;
+    const totalTimeM = Math.round((drivingTimeH + stopTimeH) * 60);
+    return `${totalTimeM} min`;
+  }, []);
+
+  // Haversine distance calculation
+  const haversineDistance = useCallback((lat1: number, lon1: number, lat2: number, lon2: number) => {
+    const R = 6371;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = 
+      Math.sin(dLat/2) * Math.sin(dLat/2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+      Math.sin(dLon/2) * Math.sin(dLon/2);
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  }, []);
+
+  // Calculate optimal route
+  const calculateOptimalRoute = useCallback((driverPos: { lat: number; lng: number } | null, customers: Customer[]) => {
+    if (!driverPos || !mapRef.current) return;
+
+    if (routeLineRef.current) {
+      routeLineRef.current.remove();
+    }
+
+    const sortedCustomers = [...customers]
+      .map(c => ({
+        ...c,
+        distance: haversineDistance(driverPos.lat, driverPos.lng, c.latitude, c.longitude),
+        eta: calculateETA(haversineDistance(driverPos.lat, driverPos.lng, c.latitude, c.longitude))
+      }))
+      .sort((a, b) => (a.distance || 0) - (b.distance || 0));
+
+    const routePoints = [
+      [driverPos.lat, driverPos.lng],
+      ...sortedCustomers.map(c => [c.latitude, c.longitude])
+    ];
+
+    routeLineRef.current = L.polyline(routePoints.map(p => [p[0], p[1]] as [number, number]), {
+      color: "#3b82f6",
+      weight: 5,
+      opacity: 0.7,
+      dashArray: '10, 10'
+    }).addTo(mapRef.current);
+
+    let totalDistance = 0;
+    for (let i = 0; i < routePoints.length - 1; i++) {
+      const [lat1, lng1] = routePoints[i];
+      const [lat2, lng2] = routePoints[i + 1];
+      totalDistance += haversineDistance(lat1, lng1, lat2, lng2);
+    }
+
+    const totalTime = calculateTotalTime(totalDistance, sortedCustomers.length);
+    onRouteCalculated(`${totalDistance.toFixed(2)} km`, totalTime);
+    mapRef.current.fitBounds(routeLineRef.current.getBounds());
+  }, [calculateETA, calculateTotalTime, haversineDistance, onRouteCalculated]);
 
   // Initialize map
   useEffect(() => {
@@ -47,7 +119,7 @@ export default function DriverMap({ customers, onRouteCalculated }: DriverMapPro
 
         if (!driverMarkerRef.current) {
           const driverIcon = L.icon({
-            iconUrl: "/raider.jpg", // Add your bike icon
+            iconUrl: "/raider.jpg",
             iconSize: [40, 40],
             iconAnchor: [20, 40],
             popupAnchor: [0, -40]
@@ -70,7 +142,7 @@ export default function DriverMap({ customers, onRouteCalculated }: DriverMapPro
     return () => {
       navigator.geolocation.clearWatch(watchId);
     };
-  }, [customers]);
+  }, [customers, calculateOptimalRoute]);
 
   // Update customer markers
   useEffect(() => {
@@ -81,7 +153,7 @@ export default function DriverMap({ customers, onRouteCalculated }: DriverMapPro
 
     customers.forEach(customer => {
       const customerIcon = L.icon({
-        iconUrl: "/raider.jpg", // Add your customer icon
+        iconUrl: "/raider.jpg",
         iconSize: [32, 32],
         iconAnchor: [16, 32],
         popupAnchor: [0, -32]
@@ -93,7 +165,7 @@ export default function DriverMap({ customers, onRouteCalculated }: DriverMapPro
           <div class="space-y-1">
             <h4 class="font-bold">${customer.address || "Customer"}</h4>
             <p>Distance: ${customer.distance?.toFixed(2) || "0.00"} km</p>
-            <p>ETA: ${calculateETA(customer.distance || 0)}</p>
+            <p>ETA: ${customer.eta || calculateETA(customer.distance || 0)}</p>
           </div>
         `);
       
@@ -103,70 +175,7 @@ export default function DriverMap({ customers, onRouteCalculated }: DriverMapPro
     if (driverPosRef.current && customers.length > 0) {
       calculateOptimalRoute(driverPosRef.current, customers);
     }
-  }, [customers]);
-
-  const calculateOptimalRoute = (driverPos: { lat: number; lng: number }, customers: any[]) => {
-    if (routeLineRef.current) {
-      routeLineRef.current.remove();
-    }
-
-    const sortedCustomers = [...customers]
-      .map(c => ({
-        ...c,
-        distance: haversineDistance(driverPos.lat, driverPos.lng, c.latitude, c.longitude),
-        eta: calculateETA(haversineDistance(driverPos.lat, driverPos.lng, c.latitude, c.longitude))
-      }))
-      .sort((a, b) => a.distance - b.distance);
-
-    const routePoints = [
-      [driverPos.lat, driverPos.lng],
-      ...sortedCustomers.map(c => [c.latitude, c.longitude])
-    ];
-
-    routeLineRef.current = L.polyline(routePoints as any, {
-      color: "#3b82f6",
-      weight: 5,
-      opacity: 0.7,
-      dashArray: '10, 10'
-    }).addTo(mapRef.current!);
-
-    let totalDistance = 0;
-    for (let i = 0; i < routePoints.length - 1; i++) {
-      const [lat1, lng1] = routePoints[i];
-      const [lat2, lng2] = routePoints[i + 1];
-      totalDistance += haversineDistance(lat1, lng1, lat2, lng2);
-    }
-
-    const totalTime = calculateTotalTime(totalDistance, sortedCustomers.length);
-    onRouteCalculated(`${totalDistance.toFixed(2)} km`, totalTime);
-    mapRef.current?.fitBounds(routeLineRef.current.getBounds());
-  };
-
-  const calculateETA = (distanceKm: number) => {
-    const avgSpeedKmH = 30; // Average delivery speed
-    const timeH = distanceKm / avgSpeedKmH;
-    const timeM = Math.round(timeH * 60);
-    return `${timeM} min`;
-  };
-
-  const calculateTotalTime = (totalDistanceKm: number, stops: number) => {
-    const avgSpeedKmH = 30;
-    const drivingTimeH = totalDistanceKm / avgSpeedKmH;
-    const stopTimeH = stops * 5 / 60; // 5 minutes per stop
-    const totalTimeM = Math.round((drivingTimeH + stopTimeH) * 60);
-    return `${totalTimeM} min`;
-  };
-
-  const haversineDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
-    const R = 6371;
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a = 
-      Math.sin(dLat/2) * Math.sin(dLat/2) +
-      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
-      Math.sin(dLon/2) * Math.sin(dLon/2);
-    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-  };
+  }, [customers, calculateETA, calculateOptimalRoute]);
 
   return <div id="map" style={{ height: "100%", width: "100%" }} />;
 }
