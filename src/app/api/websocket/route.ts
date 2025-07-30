@@ -32,15 +32,23 @@ export async function GET(request: NextRequest) {
       clients.delete(orderId)
     }
   })
+interface WebSocketMessage {
+  type: string;
+  [key: string]: unknown;
+}
 
-  socket.on("message", (data) => {
-    const message = JSON.parse(data.toString())
+  socket.on("message", (data:string) => {
+    try{
+    const message: WebSocketMessage = JSON.parse(data);
     clients.get(orderId)?.forEach((client) => {
       if (client !== socket && client.readyState === 1) {
         client.send(JSON.stringify(message))
       }
-    })
-  })
+    });
+    } catch(error){
+       console.error("Error parsing message:", error);
+    }
+  });
 
   return response
 }
