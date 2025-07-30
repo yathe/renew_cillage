@@ -3,7 +3,7 @@
 import { useEffect, useRef, useCallback } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-
+import { useCallback } from "react";
 interface Customer {
   id: string;
   latitude: number;
@@ -54,33 +54,32 @@ export default function DriverMap({ customers, onRouteCalculated }: DriverMapPro
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
   }, []);
 
-  // Calculate optimal route
-  const calculateOptimalRoute = useCallback((driverPos: { lat: number; lng: number } | null, customers: Customer[]) => {
-    if (!driverPos || !mapRef.current) return;
+ const calculateOptimalRoute = useCallback((driverPos: { lat: number; lng: number } | null, customers: Customer[]) => {
+  if (!driverPos || !mapRef.current) return;
 
-    if (routeLineRef.current) {
-      routeLineRef.current.remove();
-    }
+  if (routeLineRef.current) {
+    routeLineRef.current.remove();
+  }
 
-    const sortedCustomers = [...customers]
-      .map(c => ({
-        ...c,
-        distance: haversineDistance(driverPos.lat, driverPos.lng, c.latitude, c.longitude),
-        eta: calculateETA(haversineDistance(driverPos.lat, driverPos.lng, c.latitude, c.longitude))
-      }))
-      .sort((a, b) => (a.distance || 0) - (b.distance || 0));
+  const sortedCustomers = [...customers]
+    .map(c => ({
+      ...c,
+      distance: haversineDistance(driverPos.lat, driverPos.lng, c.latitude, c.longitude),
+      eta: calculateETA(haversineDistance(driverPos.lat, driverPos.lng, c.latitude, c.longitude))
+    }))
+    .sort((a, b) => (a.distance || 0) - (b.distance || 0));
 
-    const routePoints = [
-      [driverPos.lat, driverPos.lng],
-      ...sortedCustomers.map(c => [c.latitude, c.longitude])
-    ];
+  const routePoints = [
+    [driverPos.lat, driverPos.lng],
+    ...sortedCustomers.map(c => [c.latitude, c.longitude])
+  ];
 
-    routeLineRef.current = L.polyline(routePoints.map(p => [p[0], p[1]] as [number, number]), {
-      color: "#3b82f6",
-      weight: 5,
-      opacity: 0.7,
-      dashArray: '10, 10'
-    }).addTo(mapRef.current);
+  routeLineRef.current = L.polyline(routePoints.map(p => [p[0], p[1]] as [number, number]), {
+    color: "#3b82f6",
+    weight: 5,
+    opacity: 0.7,
+    dashArray: '10, 10'
+  }).addTo(mapRef.current);
 
     let totalDistance = 0;
     for (let i = 0; i < routePoints.length - 1; i++) {
@@ -172,10 +171,10 @@ export default function DriverMap({ customers, onRouteCalculated }: DriverMapPro
       customerMarkersRef.current.push(marker);
     });
 
-    if (driverPosRef.current && customers.length > 0) {
+    if (mapRef.current && customers.length > 0 && driverPosRef.current) {
       calculateOptimalRoute(driverPosRef.current, customers);
     }
-  }, [customers, calculateETA, calculateOptimalRoute]);
+  }, [customers,calculateOptimalRoute]);
 
   return <div id="map" style={{ height: "100%", width: "100%" }} />;
 }
