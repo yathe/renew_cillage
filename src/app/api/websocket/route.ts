@@ -1,10 +1,10 @@
 // src/app/api/websocket/route.ts
 import { NextRequest, NextResponse } from "next/server"
-import { WebSocketServer } from "ws"
+// import { WebSocketServer } from "ws"
 
 export const dynamic = "force-dynamic" // Required for WebSockets
 
-const wss = new WebSocketServer({ noServer: true })
+// const wss = new WebSocketServer({ noServer: true })
 const clients = new Map()
 
 export async function GET(request: NextRequest) {
