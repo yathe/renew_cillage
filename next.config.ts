@@ -1,6 +1,6 @@
 import type { NextConfig } from "next";
 
-module.exports = {
+const nextConfig: NextConfig = {
   transpilePackages: ["@react-email/tailwind"],
   rewrites: async () => {
     return process.env.NODE_ENV === 'development' ? [
@@ -10,10 +10,9 @@ module.exports = {
       },
     ] : []
   },
-  // For WebSocket support in Vercel
   experimental: {
     serverComponentsExternalPackages: ['ws'],
   },
-}
+};
 
 export default nextConfig;
