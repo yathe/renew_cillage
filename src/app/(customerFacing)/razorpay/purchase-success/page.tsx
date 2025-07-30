@@ -63,12 +63,12 @@ export default async function SuccessPage({
     },
   })
 
-  const downloadVerification = await db.downloadVerification.create({
-    data: {
-      productId,
-      expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
-    },
-  })
+  // const downloadVerification = await db.downloadVerification.create({
+  //   data: {
+  //     productId,
+  //     expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+  //   },
+  // })
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 via-white to-gray-100 p-4">
