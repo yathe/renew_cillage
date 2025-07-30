@@ -20,7 +20,7 @@ export default function DriverDashboard() {
   const [totalTime, setTotalTime] = useState("calculating...");
   const [connectionStatus, setConnectionStatus] = useState<"connecting"|"connected"|"error"|"disconnected">("connecting");
   const eventSourceRef = useRef<EventSource | null>(null);
-  const customerIdRef = useRef<string>(Math.random().toString(36).substring(2));
+  // const customerIdRef = useRef<string>(Math.random().toString(36).substring(2));
 
   // Track driver location
   useEffect(() => {
