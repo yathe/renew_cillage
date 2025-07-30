@@ -21,107 +21,84 @@ export default function TrackOrder() {
   const [distance, setDistance] = useState("calculating...");
   const [connectionStatus, setConnectionStatus] = useState<"connecting"|"connected"|"error"|"disconnected">("connecting");
   
-  const socketRef = useRef<WebSocket | null>(null);
-  const reconnectTimeout = useRef<NodeJS.Timeout | null>(null);
+  const eventSourceRef = useRef<EventSource | null>(null);
+  const customerIdRef = useRef<string>(Math.random().toString(36).substring(2));
 
-  // Connect to WebSocket
-  const connectWebSocket = () => {
+  // Connect to SSE for driver updates
+  useEffect(() => {
     setConnectionStatus("connecting");
     
-    // Use your Node.js backend URL
-    const socket = new WebSocket(`ws://localhost:3001`);
-    socketRef.current = socket;
+    const eventSource = new EventSource(`/api/customer-events/${orderId}`);
+    eventSourceRef.current = eventSource;
 
-    socket.onopen = () => {
+    eventSource.addEventListener('initial', (event) => {
       setConnectionStatus("connected");
-      console.log("WebSocket connected");
-      
-      // Join the order room
-      socket.send(JSON.stringify({
-        type: "join-order",
-        orderId
-      }));
-    };
-
-    socket.onmessage = (event) => {
       const data = JSON.parse(event.data);
-      
-      if (data.type === "driver-update") {
-        setDriverLocation([data.latitude, data.longitude]);
-      } 
-      else if (data.type === "order-data") {
-        if (data.driver) {
-          setDriverLocation([data.driver.latitude, data.driver.longitude]);
-        }
+      if (data.driver) {
+        setDriverLocation([data.driver.latitude, data.driver.longitude]);
       }
-    };
+    });
 
-    socket.onerror = () => {
+    eventSource.addEventListener('driver-update', (event) => {
+      const { driver } = JSON.parse(event.data);
+      setDriverLocation([driver.latitude, driver.longitude]);
+    });
+
+    eventSource.onerror = () => {
       setConnectionStatus("error");
-      reconnect();
+      eventSource.close();
     };
 
-    socket.onclose = () => {
-      setConnectionStatus("disconnected");
-      reconnect();
-    };
-  };
-
-  const reconnect = () => {
-    if (reconnectTimeout.current) return;
-    
-    reconnectTimeout.current = setTimeout(() => {
-      reconnectTimeout.current = null;
-      connectWebSocket();
-    }, 3000);
-  };
-
-  // Initialize WebSocket connection
-  useEffect(() => {
-    connectWebSocket();
-    
     return () => {
-      if (socketRef.current) {
-        socketRef.current.close();
-      }
-      if (reconnectTimeout.current) {
-        clearTimeout(reconnectTimeout.current);
-      }
+      eventSource.close();
+      setConnectionStatus("disconnected");
+      
+      // Notify server about disconnection
+      fetch('/api/disconnect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderId,
+          customerId: customerIdRef.current,
+          type: 'customer'
+        })
+      }).catch(console.error);
     };
   }, [orderId]);
 
-  // Send customer location updates
-  const sendCustomerLocation = (latitude: number, longitude: number) => {
-    if (socketRef.current?.readyState === WebSocket.OPEN) {
-      socketRef.current.send(JSON.stringify({
-        type: "customer-location",
-        orderId,
-        latitude,
-        longitude,
-        address
-      }));
-    }
-  };
-
-  // Get customer location
+  // Track customer location
   useEffect(() => {
-    if (!navigator.geolocation) {
-      console.warn("Geolocation not supported");
-      return;
+    let watchId: number | null = null;
+    
+    if (navigator.geolocation) {
+      watchId = navigator.geolocation.watchPosition(
+        async (pos) => {
+          const { latitude, longitude } = pos.coords;
+          setCustomerLocation([latitude, longitude]);
+          
+          try {
+            await fetch('/api/customer-location', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                orderId,
+                latitude,
+                longitude,
+                address,
+                customerId: customerIdRef.current
+              })
+            });
+          } catch (error) {
+            console.error("Failed to update customer location:", error);
+          }
+        },
+        (err) => console.error("Geolocation error:", err),
+        { enableHighAccuracy: true }
+      );
     }
-
-    const watchId = navigator.geolocation.watchPosition(
-      (pos) => {
-        const { latitude, longitude } = pos.coords;
-        setCustomerLocation([latitude, longitude]);
-        sendCustomerLocation(latitude, longitude);
-      },
-      (err) => console.error("Geolocation error:", err),
-      { enableHighAccuracy: true }
-    );
 
     return () => {
-      navigator.geolocation.clearWatch(watchId);
+      if (watchId) navigator.geolocation.clearWatch(watchId);
     };
   }, [orderId, address]);
 
@@ -139,42 +116,21 @@ export default function TrackOrder() {
       const data = await response.json();
       if (data.latitude && data.longitude) {
         setCustomerLocation([data.latitude, data.longitude]);
-        sendCustomerLocation(data.latitude, data.longitude);
+        
+        await fetch('/api/customer-location', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            orderId,
+            latitude: data.latitude,
+            longitude: data.longitude,
+            address,
+            customerId: customerIdRef.current
+          })
+        });
       }
     } catch (error) {
       console.error("Geocoding error:", error);
-    }
-  };
-
-  // Calculate route when locations change
-  useEffect(() => {
-    if (driverLocation && customerLocation) {
-      calculateRoute(driverLocation, customerLocation);
-    }
-  }, [driverLocation, customerLocation]);
-
-  const calculateRoute = async (start: [number, number], end: [number, number]) => {
-    try {
-      const response = await fetch("/api/route", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ start, end })
-      });
-      
-      const data = await response.json();
-      
-      if (data.features?.[0]?.properties?.summary) {
-        const summary = data.features[0].properties.summary;
-        const distanceKm = (summary.distance / 1000).toFixed(2);
-        const etaMin = Math.round(summary.duration / 60);
-        
-        setEta(`${etaMin} min`);
-        setDistance(`${distanceKm} km`);
-      }
-    } catch (error) {
-      console.error("Route calculation error:", error);
-      setEta("error");
-      setDistance("error");
     }
   };
 

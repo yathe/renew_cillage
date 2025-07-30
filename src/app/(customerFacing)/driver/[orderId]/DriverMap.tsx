@@ -47,7 +47,7 @@ export default function DriverMap({ customers, onRouteCalculated }: DriverMapPro
 
         if (!driverMarkerRef.current) {
           const driverIcon = L.icon({
-            iconUrl: "/delivery-bike.png", // Add your bike icon
+            iconUrl: "/raider.jpg", // Add your bike icon
             iconSize: [40, 40],
             iconAnchor: [20, 40],
             popupAnchor: [0, -40]
@@ -81,7 +81,7 @@ export default function DriverMap({ customers, onRouteCalculated }: DriverMapPro
 
     customers.forEach(customer => {
       const customerIcon = L.icon({
-        iconUrl: "/customer-marker.png", // Add your customer icon
+        iconUrl: "/raider.jpg", // Add your customer icon
         iconSize: [32, 32],
         iconAnchor: [16, 32],
         popupAnchor: [0, -32]

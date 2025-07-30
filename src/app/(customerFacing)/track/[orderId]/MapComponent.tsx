@@ -43,7 +43,7 @@ export default function MapComponent({
     if (driverLocation) {
       if (!driverMarkerRef.current) {
         const driverIcon = L.icon({
-          iconUrl: "https://www.pngitem.com/pimgs/m/3-37779_transparent-delivery-png-delivery-boy-with-bike-png.png",
+          iconUrl: "/public/cus.jpg",
           iconSize: [50, 50],
           iconAnchor: [25, 50],
           popupAnchor: [0, -50]

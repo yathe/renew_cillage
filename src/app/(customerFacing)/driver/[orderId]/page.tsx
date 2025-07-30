@@ -18,58 +18,31 @@ export default function DriverDashboard() {
   const [customers, setCustomers] = useState<any[]>([]);
   const [totalDistance, setTotalDistance] = useState("calculating...");
   const [totalTime, setTotalTime] = useState("calculating...");
-  const socketRef = useRef<WebSocket | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<"connecting"|"connected"|"error"|"disconnected">("connecting");
+  const eventSourceRef = useRef<EventSource | null>(null);
+  const customerIdRef = useRef<string>(Math.random().toString(36).substring(2));
 
+  // Track driver location
   useEffect(() => {
-    const socket = new WebSocket(`ws://localhost:3001`);
-    socketRef.current = socket;
-
-    const handleMessage = (event: MessageEvent) => {
-      try {
-        const data = JSON.parse(event.data);
-        
-        if (data.type === "all-customers") {
-          setCustomers(Object.values(data.customers));
-        } else if (data.type === "customer-location") {
-          setCustomers(prev => {
-            const existing = prev.find(c => c.id === data.id);
-            return existing 
-              ? prev.map(c => c.id === data.id ? {...c, ...data} : c)
-              : [...prev, data];
-          });
-        } else if (data.type === "customer-disconnected") {
-          setCustomers(prev => prev.filter(c => c.id !== data.id));
-        }
-      } catch (error) {
-        console.error("Error parsing message:", error);
-      }
-    };
-
-    socket.onopen = () => {
-      setConnectionStatus("connected");
-      socket.send(JSON.stringify({
-        type: "join-order",
-        orderId
-      }));
-    };
-
-    socket.onmessage = handleMessage;
-    socket.onerror = () => setConnectionStatus("error");
-    socket.onclose = () => setConnectionStatus("disconnected");
-
     let watchId: number | null = null;
+    
     if (navigator.geolocation) {
       watchId = navigator.geolocation.watchPosition(
-        (pos) => {
+        async (pos) => {
           const { latitude, longitude } = pos.coords;
-          if (socket.readyState === WebSocket.OPEN) {
-            socket.send(JSON.stringify({
-              type: "driver-location",
-              latitude,
-              longitude,
-              orderId
-            }));
+          
+          try {
+            await fetch('/api/driver-location', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                orderId,
+                latitude,
+                longitude
+              })
+            });
+          } catch (error) {
+            console.error("Failed to update driver location:", error);
           }
         },
         (err) => console.error(err),
@@ -79,7 +52,45 @@ export default function DriverDashboard() {
 
     return () => {
       if (watchId) navigator.geolocation.clearWatch(watchId);
-      socket.close();
+    };
+  }, [orderId]);
+
+  // Connect to SSE for customer updates
+  useEffect(() => {
+    setConnectionStatus("connecting");
+    
+    const eventSource = new EventSource(`/api/driver-events/${orderId}`);
+    eventSourceRef.current = eventSource;
+
+    eventSource.addEventListener('initial', (event) => {
+      setConnectionStatus("connected");
+      const data = JSON.parse(event.data);
+      setCustomers(data.customers || []);
+    });
+
+    eventSource.addEventListener('customer-update', (event) => {
+      const { customer } = JSON.parse(event.data);
+      setCustomers(prev => {
+        const existing = prev.find(c => c.id === customer.id);
+        return existing 
+          ? prev.map(c => c.id === customer.id ? customer : c)
+          : [...prev, customer];
+      });
+    });
+
+    eventSource.addEventListener('customer-disconnected', (event) => {
+      const { customerId } = JSON.parse(event.data);
+      setCustomers(prev => prev.filter(c => c.id !== customerId));
+    });
+
+    eventSource.onerror = () => {
+      setConnectionStatus("error");
+      eventSource.close();
+    };
+
+    return () => {
+      eventSource.close();
+      setConnectionStatus("disconnected");
     };
   }, [orderId]);
 
@@ -164,7 +175,7 @@ export default function DriverDashboard() {
                           </span>
                           <span className="flex items-center gap-1 text-gray-600">
                             <Clock className="w-4 h-4" />
-                            {customer.eta || "calculating..."}
+                            {customer.eta || "calculating..."} min
                           </span>
                         </div>
                       </div>
