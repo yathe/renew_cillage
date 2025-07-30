@@ -10,9 +10,8 @@ const nextConfig: NextConfig = {
       },
     ] : []
   },
-  experimental: {
-    serverComponentsExternalPackages: ['ws'],
-  },
+  // Updated configuration for WebSocket support
+  serverExternalPackages: ['ws'],
 };
 
 export default nextConfig;
