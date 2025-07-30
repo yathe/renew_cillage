@@ -1,7 +1,6 @@
-// F:\totally_new_cillage\renew_cillage\src\app\(customerFacing)\track\[orderId]\MapComponent.tsx
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useCallback } from "react"
 import L from "leaflet"
 import "leaflet/dist/leaflet.css"
 
@@ -37,6 +36,47 @@ export default function MapComponent({
     }
   }, [])
 
+  const calculateRoute = useCallback(async (start: [number, number], end: [number, number]) => {
+    try {
+      const response = await fetch("/api/route", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ start, end })
+      })
+
+      const data = await response.json()
+
+      if (data.features?.[0]?.properties?.summary) {
+        const summary = data.features[0].properties.summary
+        const distanceKm = (summary.distance / 1000).toFixed(2)
+        const etaMin = Math.round(summary.duration / 60)
+
+        onRouteCalculated(`${etaMin} min`, `${distanceKm} km`)
+
+        // Draw route on map
+        const coordinates = data.features[0].geometry.coordinates.map(
+          (coord: number[]) => [coord[1], coord[0]]
+        )
+
+        if (routeLineRef.current) {
+          routeLineRef.current.setLatLngs(coordinates)
+        } else {
+          routeLineRef.current = L.polyline(coordinates, {
+            color: "#3498db",
+            weight: 5,
+            opacity: 0.7
+          }).addTo(mapRef.current!)
+        }
+
+        // Fit map to route bounds
+        const bounds = L.latLngBounds(coordinates)
+        mapRef.current?.fitBounds(bounds)
+      }
+    } catch (error) {
+      console.error("Route calculation error:", error)
+    }
+  }, [onRouteCalculated])
+
   useEffect(() => {
     if (!mapRef.current) return
 
@@ -48,7 +88,7 @@ export default function MapComponent({
           iconAnchor: [25, 50],
           popupAnchor: [0, -50]
         })
-        
+
         driverMarkerRef.current = L.marker(driverLocation, {
           icon: driverIcon,
           zIndexOffset: 1000
@@ -66,7 +106,7 @@ export default function MapComponent({
           iconAnchor: [20, 40],
           popupAnchor: [0, -40]
         })
-        
+
         customerMarkerRef.current = L.marker(customerLocation, {
           icon: customerIcon
         }).addTo(mapRef.current)
@@ -78,46 +118,7 @@ export default function MapComponent({
     if (driverLocation && customerLocation) {
       calculateRoute(driverLocation, customerLocation)
     }
-  }, [driverLocation, customerLocation])
-
-  const calculateRoute = async (start: [number, number], end: [number, number]) => {
-    try {
-      const response = await fetch("/api/route", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ start, end })
-      })
-      
-      const data = await response.json()
-      
-      if (data.features?.[0]?.properties?.summary) {
-        const summary = data.features[0].properties.summary
-        const distanceKm = (summary.distance / 1000).toFixed(2)
-        const etaMin = Math.round(summary.duration / 60)
-        
-        onRouteCalculated(`${etaMin} min`, `${distanceKm} km`)
-        
-        // Draw route on map
-        const coordinates = data.features[0].geometry.coordinates.map((coord: number[]) => [coord[1], coord[0]])
-        
-        if (routeLineRef.current) {
-          routeLineRef.current.setLatLngs(coordinates)
-        } else {
-          routeLineRef.current = L.polyline(coordinates, {
-            color: "#3498db",
-            weight: 5,
-            opacity: 0.7
-          }).addTo(mapRef.current!)
-        }
-        
-        // Fit map to route bounds
-        const bounds = L.latLngBounds(coordinates)
-        mapRef.current?.fitBounds(bounds)
-      }
-    } catch (error) {
-      console.error("Route calculation error:", error)
-    }
-  }
+  }, [driverLocation, customerLocation, calculateRoute])
 
   return <div id="map" style={{ height: "100%", width: "100%" }} />
 }
