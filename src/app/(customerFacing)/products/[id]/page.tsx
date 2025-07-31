@@ -1,15 +1,7 @@
 // src/app/(customerFacing)/products/[id]/page.tsx
 import Purchase from "./Purchase";
 
-// Simple interface without extending Next.js types
-interface ProductPageProps {
-  params: {
-    id: string;
-  };
-}
-
-export default function Page({ params }: ProductPageProps) {
+// Simple object destructuring without custom types
+export default function Page({ params }: { params: { id: string } }) {
   return <Purchase id={params.id} />;
 }
-
-// Remove any custom type declarations from next.d.ts
