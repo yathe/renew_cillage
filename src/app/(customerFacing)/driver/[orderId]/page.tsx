@@ -15,7 +15,16 @@ export default function DriverDashboard() {
   const params = useParams();
   const orderId = params.orderId as string;
   
-  const [customers, setCustomers] = useState<any[]>([]);
+ interface Customer {
+  id: string;
+  latitude: number;
+  longitude: number;
+  address?: string;
+  distance?: number;
+  eta?: string;
+}
+
+const [customers, setCustomers] = useState<Customer[]>([]);
   const [totalDistance, setTotalDistance] = useState("calculating...");
   const [totalTime, setTotalTime] = useState("calculating...");
   const [connectionStatus, setConnectionStatus] = useState<"connecting"|"connected"|"error"|"disconnected">("connecting");
