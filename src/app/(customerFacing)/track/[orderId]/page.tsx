@@ -14,10 +14,13 @@ const DynamicMap = dynamic(() => import("./MapComponent"), {
 });
 
 type LatLng = [number, number];
+interface TrackOrderParams {
+  orderId: string;
+}
 
 export default function TrackOrder() {
-  const params = useParams();
-  const orderId = params?.orderId as string;
+  const params = useParams<TrackOrderParams>();
+  const orderId = params?.orderId;
 
   const [address, setAddress] = useState<string>("");
   const [driverLocation, setDriverLocation] = useState<LatLng | null>(null);
