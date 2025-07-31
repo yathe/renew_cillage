@@ -1,14 +1,17 @@
+// src/app/(customerFacing)/products/[id]/page.tsx
 import Purchase from "./Purchase";
+import { Metadata } from "next";
 
-// Remove any PageProps imports or declarations
-// Keep it simple with inline types
-
-export default function Page({
+export async function generateMetadata({
   params,
 }: {
-  params: {
-    id: string;
+  params: { id: string };
+}): Promise<Metadata> {
+  return {
+    title: `Product ${params.id}`,
   };
-}) {
+}
+
+export default function Page({ params }: { params: { id: string } }) {
   return <Purchase id={params.id} />;
 }
