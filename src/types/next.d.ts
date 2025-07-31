@@ -2,7 +2,7 @@
 import 'next';
 
 declare module 'next' {
-  type PageParams<T = Record<string, string>> = {
+  type PageParams<T = {}> = {
     params: T;
     searchParams?: Record<string, string | string[] | undefined>;
   };
