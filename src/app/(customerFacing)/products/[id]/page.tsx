@@ -1,4 +1,3 @@
-// src/app/(customerFacing)/products/[id]/page.tsx
 import Purchase from "./Purchase";
 
 interface ProductPageParams {
