@@ -1,8 +1,7 @@
-// src/types/next.d.ts
 import 'next';
 
 declare module 'next' {
-  type PageParams<T = {}> = {
+  type PageParams<T = object> = {  // Changed from {} to object
     params: T;
     searchParams?: Record<string, string | string[] | undefined>;
   };
