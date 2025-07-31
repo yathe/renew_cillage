@@ -1,8 +1,11 @@
 import Purchase from "./Purchase";
-export default function PurchasePage({
-  params,
-}: {
-  params: { id: string };
-}) {
+
+interface PageProps {
+  params: {
+    id: string;
+  };
+}
+
+export default function PurchasePage({ params }: PageProps) {
   return <Purchase id={params.id} />;
 }
