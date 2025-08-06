@@ -14,6 +14,9 @@ const DynamicMap = dynamic(() => import("./MapComponent"), {
 });
 
 type LatLng = [number, number];
+interface TrackOrderParams {
+  orderId: string;
+}
 
 type DriverUpdateEvent = {
   driver: { latitude: number; longitude: number };
@@ -24,7 +27,9 @@ type InitialEvent = {
 };
 
 export default function TrackOrder() {
+
   const params = useParams<{ orderId: string }>();
+
   const orderId = params?.orderId;
 
   const [address, setAddress] = useState<string>("");

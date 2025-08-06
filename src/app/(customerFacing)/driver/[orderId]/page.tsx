@@ -11,9 +11,14 @@ const DynamicMap = dynamic(() => import("./DriverMap"), {
   loading: () => <p>Loading map...</p>,
 });
 
+interface DriverPageParams {
+  orderId: string;
+}
+
 export default function DriverDashboard() {
-  const params = useParams();
-  const orderId = params.orderId as string;
+  const params = useParams<DriverPageParams>();
+  const orderId = params?.orderId;
+
   
  interface Customer {
   id: string;

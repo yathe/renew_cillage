@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useParams } from "next/navigation";
@@ -58,4 +59,9 @@ export default function Page() {
       currency={order.currency}
     />
   );
+
+// src/app/(customerFacing)/products/[id]/page.tsx
+
+
+// Use inline type definition without extending anything
 }
