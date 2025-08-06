@@ -7,7 +7,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
-// Import the dynamic map component
+// Dynamically import MapComponent
 const DynamicMap = dynamic(() => import("./MapComponent"), {
   ssr: false,
   loading: () => <p>Loading map...</p>,
@@ -15,22 +15,34 @@ const DynamicMap = dynamic(() => import("./MapComponent"), {
 
 type LatLng = [number, number];
 
+type DriverUpdateEvent = {
+  driver: { latitude: number; longitude: number };
+};
+
+type InitialEvent = {
+  driver?: { latitude: number; longitude: number };
+};
+
 export default function TrackOrder() {
-  const params = useParams();
-  const orderId = params?.orderId as string;
+  const params = useParams<{ orderId: string }>();
+  const orderId = params?.orderId;
 
   const [address, setAddress] = useState<string>("");
   const [driverLocation, setDriverLocation] = useState<LatLng | null>(null);
   const [customerLocation, setCustomerLocation] = useState<LatLng | null>(null);
   const [eta, setEta] = useState<string>("calculating...");
   const [distance, setDistance] = useState<string>("calculating...");
-  const [connectionStatus, setConnectionStatus] = useState<"connecting" | "connected" | "error" | "disconnected">("connecting");
+  const [connectionStatus, setConnectionStatus] = useState<
+    "connecting" | "connected" | "error" | "disconnected"
+  >("connecting");
 
   const eventSourceRef = useRef<EventSource | null>(null);
   const customerIdRef = useRef<string>(Math.random().toString(36).substring(2));
 
-  // SSE listener
+  // ✅ SSE for driver updates
   useEffect(() => {
+    if (!orderId) return;
+
     setConnectionStatus("connecting");
 
     const eventSource = new EventSource(`/api/customer-events/${orderId}`);
@@ -38,14 +50,14 @@ export default function TrackOrder() {
 
     eventSource.addEventListener("initial", (event: MessageEvent) => {
       setConnectionStatus("connected");
-      const data = JSON.parse(event.data);
+      const data: InitialEvent = JSON.parse(event.data);
       if (data.driver) {
         setDriverLocation([data.driver.latitude, data.driver.longitude]);
       }
     });
 
     eventSource.addEventListener("driver-update", (event: MessageEvent) => {
-      const { driver } = JSON.parse(event.data);
+      const { driver }: DriverUpdateEvent = JSON.parse(event.data);
       setDriverLocation([driver.latitude, driver.longitude]);
     });
 
@@ -53,6 +65,9 @@ export default function TrackOrder() {
       setConnectionStatus("error");
       eventSource.close();
     };
+
+    // ✅ Fix ESLint warning by capturing ref value
+    const currentCustomerId = customerIdRef.current;
 
     return () => {
       eventSource.close();
@@ -63,20 +78,22 @@ export default function TrackOrder() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           orderId,
-          customerId: customerIdRef.current,
+          customerId: currentCustomerId,
           type: "customer",
         }),
       }).catch(console.error);
     };
   }, [orderId]);
 
-  // Track customer live location
+  // ✅ Track customer live location
   useEffect(() => {
+    if (!orderId) return;
+
     let watchId: number | null = null;
 
     if (navigator.geolocation) {
       watchId = navigator.geolocation.watchPosition(
-        async (pos) => {
+        async (pos: GeolocationPosition) => {
           const { latitude, longitude } = pos.coords;
           setCustomerLocation([latitude, longitude]);
 
@@ -96,7 +113,8 @@ export default function TrackOrder() {
             console.error("Failed to update customer location:", error);
           }
         },
-        (err) => console.error("Geolocation error:", err),
+        (err: GeolocationPositionError) =>
+          console.error("Geolocation error:", err),
         { enableHighAccuracy: true }
       );
     }
@@ -106,7 +124,7 @@ export default function TrackOrder() {
     };
   }, [orderId, address]);
 
-  // Address submit
+  // ✅ Handle manual address update
   const handleAddressSubmit = async () => {
     if (!address.trim()) return;
 
@@ -117,7 +135,9 @@ export default function TrackOrder() {
         body: JSON.stringify({ address }),
       });
 
-      const data = await response.json();
+      const data: { latitude?: number; longitude?: number } =
+        await response.json();
+
       if (data.latitude && data.longitude) {
         setCustomerLocation([data.latitude, data.longitude]);
 

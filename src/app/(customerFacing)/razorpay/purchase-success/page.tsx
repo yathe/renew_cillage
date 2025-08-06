@@ -56,7 +56,7 @@ export default async function SuccessPage({
       product: {
         connect: { id: productId }
       },
-      pricePaidInCents: payment.amount,
+      pricePaidInCents: Number(payment.amount),
       user: { 
         connect: { id: user.id }
       },

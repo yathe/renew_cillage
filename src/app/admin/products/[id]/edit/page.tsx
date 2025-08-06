@@ -3,16 +3,18 @@ import { PageHeader } from "../../../_components/PageHeader"
 import { ProductForm } from "../../_components/ProductForm"
 
 export default async function EditProductPage({
-  params: { id },
+  params,
 }: {
-  params: { id: string }
+  params: Promise<{ id: string }>;
 }) {
-  const product = await db.product.findUnique({ where: { id } })
+  const { id } = await params;
 
-return(
-    <div className="flex justify-center items-center flex-col ">
-    <PageHeader>Edit Product</PageHeader>
-    <ProductForm product={product}/>
+  const product = await db.product.findUnique({ where: { id } });
+
+  return (
+    <div className="flex justify-center items-center flex-col">
+      <PageHeader>Edit Product</PageHeader>
+      <ProductForm product={product} />
     </div>
-  )
+  );
 }

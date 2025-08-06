@@ -1,19 +1,17 @@
-// src/app/api/driver-events/[orderId]/route.ts
 import { NextRequest, NextResponse } from "next/server";
 
-export async function GET(request: NextRequest, { params }: { params: { orderId: string } }) {
-  // Connect to your backend service (running on port 3001)
-  const backendUrl = `http://localhost:3001/api/driver-events/${params.orderId}`;
-  
-  // Forward the request to your backend
+export async function GET(request: NextRequest, context: { params: Promise<{ orderId: string }> }) {
+  const { orderId } = await context.params;
+
+  const backendUrl = `http://localhost:3001/api/driver-events/${orderId}`;
+
   const response = await fetch(backendUrl, {
-    headers: request.headers
+    headers: request.headers,
   });
 
-  // Return the backend response
   return new NextResponse(response.body, {
     status: response.status,
     statusText: response.statusText,
-    headers: response.headers
+    headers: response.headers,
   });
 }
